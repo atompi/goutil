@@ -14,6 +14,8 @@ type handler struct {
 	writers     map[slog.Level]io.Writer
 	logger      *Logger
 	slogOptions *slog.HandlerOptions
+	attrs       []slog.Attr
+	group       string
 }
 
 func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
@@ -28,20 +30,39 @@ func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 		writer = h.writers[r.Level]
 	}
 
+	for _, attr := range h.attrs {
+		r.AddAttrs(attr)
+	}
+
+	var h2 slog.Handler
 	switch h.logger.Format {
 	case "json", "JSON":
-		return slog.NewJSONHandler(writer, h.slogOptions).Handle(ctx, r)
+		h2 = slog.NewJSONHandler(writer, h.slogOptions)
 	default:
-		return slog.NewTextHandler(writer, h.slogOptions).Handle(ctx, r)
+		h2 = slog.NewTextHandler(writer, h.slogOptions)
 	}
+
+	if h.group != "" {
+		h2 = h2.WithGroup(h.group)
+	}
+
+	return h2.Handle(ctx, r)
 }
 
 func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return h
+	newHandler := *h
+	newHandler.attrs = append(newHandler.attrs, attrs...)
+	return &newHandler
 }
 
 func (h *handler) WithGroup(name string) slog.Handler {
-	return h
+	newHandler := *h
+	if newHandler.group != "" {
+		newHandler.group = name + "/" + newHandler.group
+	} else {
+		newHandler.group = name
+	}
+	return &newHandler
 }
 
 func newSlogHandler(logger *Logger, slogOptions *slog.HandlerOptions) *handler {
@@ -72,8 +93,7 @@ func NewSlogLogger(logger *Logger) *slog.Logger {
 		ReplaceAttr: newSlogReplaceAttr(),
 	}
 
-	slogger := slog.New(newSlogHandler(logger, slogOptions))
-	return slogger
+	return slog.New(newSlogHandler(logger, slogOptions))
 }
 
 func convertToSlogLevel(level string) slog.Level {
@@ -103,7 +123,7 @@ func newSlogReplaceAttr() func(groups []string, a slog.Attr) slog.Attr {
 				sourceFileBase := filepath.Base(source.File)
 				source.File = fmt.Sprintf(
 					"%s/%s/%s",
-					strings.Join(funcPathItems[0:len(funcPathItems)-1], "/"),
+					strings.Join(funcPathItems[:len(funcPathItems)-1], "/"),
 					strings.Split(funcPathItems[len(funcPathItems)-1], ".")[0],
 					sourceFileBase,
 				)

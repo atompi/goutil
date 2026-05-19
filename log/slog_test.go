@@ -139,16 +139,14 @@ func TestHandlerWithAttrsAndGroup(t *testing.T) {
 	logger := &Logger{Level: "info"}
 	h := &handler{logger: logger}
 
-	// Test WithAttrs
 	resultAttrs := h.WithAttrs([]slog.Attr{})
-	if resultAttrs != h {
-		t.Error("WithAttrs should return the same handler")
+	if resultAttrs == h {
+		t.Error("WithAttrs should return a new handler")
 	}
 
-	// Test WithGroup
 	resultGroup := h.WithGroup("test")
-	if resultGroup != h {
-		t.Error("WithGroup should return the same handler")
+	if resultGroup == h {
+		t.Error("WithGroup should return a new handler")
 	}
 }
 
@@ -285,7 +283,7 @@ func TestNewSlogReplaceAttr(t *testing.T) {
 }
 
 // Helper function to mock runtime.Caller for testing
-var runtimeCaller = func(skip int) (pc uintptr, file string, line int, ok bool) {
+var runtimeCaller = func(_ int) (pc uintptr, file string, line int, ok bool) {
 	return 0, "/tmp/src/github.com/atompi/test/test/test.go", 10, true
 }
 

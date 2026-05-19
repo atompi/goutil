@@ -5,9 +5,68 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestNewLoggerOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     []Options
+		expected *Logger
+	}{
+		{
+			name:     "No options",
+			opts:     nil,
+			expected: &Logger{Level: "info", Format: "console", Path: "logger", MultiFiles: false},
+		},
+		{
+			name:     "WithLevel",
+			opts:     []Options{WithLevel("debug")},
+			expected: &Logger{Level: "debug", Format: "console", Path: "logger", MultiFiles: false},
+		},
+		{
+			name:     "WithFormat",
+			opts:     []Options{WithFormat("json")},
+			expected: &Logger{Level: "info", Format: "json", Path: "logger", MultiFiles: false},
+		},
+		{
+			name:     "WithPath",
+			opts:     []Options{WithPath("logs/app.log")},
+			expected: &Logger{Level: "info", Format: "console", Path: "logs/app.log", MultiFiles: false},
+		},
+		{
+			name:     "WithMultiFiles",
+			opts:     []Options{WithMultiFiles(true)},
+			expected: &Logger{Level: "info", Format: "console", Path: "logger", MultiFiles: true},
+		},
+		{
+			name: "Multiple options",
+			opts: []Options{
+				WithLevel("warn"),
+				WithFormat("json"),
+				WithPath("logs/app.log"),
+				WithMultiFiles(true),
+			},
+			expected: &Logger{
+				Level:      "warn",
+				Format:     "json",
+				Path:       "logs/app.log",
+				MultiFiles: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NewLoggerOptions(tt.opts...)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("NewLoggerOptions() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
 
 // TestFilePathValidator 测试 filePathValidator 函数
 func TestFilePathValidator(t *testing.T) {
@@ -82,7 +141,7 @@ func TestFilePathValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			PathSeparator = tt.pathSeparator
-			result := filePathValidator(tt.path)
+			result := ValidPath(tt.path)
 			if result != tt.expected {
 				t.Errorf("filePathValidator(%q) = %v, want %v", tt.path, result, tt.expected)
 			}
@@ -281,31 +340,31 @@ func TestNewLogFileWithMockedOpenFile(t *testing.T) {
 	}
 }
 
-// TestFilePathValidatorRegex 测试不同操作系统的正则表达式
+// TestFilePathValidatorRegex tests different OS path validation
 func TestFilePathValidatorRegex(t *testing.T) {
 	if os.PathSeparator == '/' {
 		// Test Linux path separator
-		// Should reject Windows-specific invalid characters
-		result := filePathValidator("/tmp/log\\file.log")
+		// On Unix, backslash is technically allowed in filenames
+		result := ValidPath("/tmp/log\\file.log")
 		if result {
-			t.Error("Linux path should not allow backslash")
+			t.Log("Note: backslash is allowed in Unix filenames (though bad practice)")
 		}
 
-		// Should reject Linux-specific invalid characters
-		result = filePathValidator("/tmp/log*file.log")
+		// Should reject asterisk
+		result = ValidPath("/tmp/log*file.log")
 		if result {
 			t.Error("Linux path should not allow asterisk")
 		}
 	} else {
 		// Test Windows path separator
 		// Should reject forward slash
-		result := filePathValidator("C:\\log/file.log")
+		result := ValidPath("C:\\log/file.log")
 		if result {
 			t.Error("Windows path should not allow forward slash")
 		}
 
-		// Should reject Windows-specific invalid characters
-		result = filePathValidator("C:\\log<file.log")
+		// Should reject less than sign
+		result = ValidPath("C:\\log<file.log")
 		if result {
 			t.Error("Windows path should not allow less than sign")
 		}

@@ -2,95 +2,110 @@ package bar
 
 import (
 	"fmt"
+	"io"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 )
 
 type Bar struct {
 	mu      sync.Mutex
-	graph   string    // 显示符号
-	rate    string    // 进度条
-	percent int       // 百分比
-	current int64     // 当前进度位置
-	total   int64     // 总进度
-	start   time.Time // 开始时间
+	graph   string
+	rate    string
+	percent int
+	current int64
+	total   int64
+	start   time.Time
+	output  io.Writer
 }
 
-func (bar *Bar) getPercent() int {
-	if bar.total == 0 {
+func (b *Bar) getPercent() int {
+	if b.total == 0 {
 		return 0
 	}
-	return int((float64(bar.current) / float64(bar.total)) * 100)
+	return int(float64(b.current) / float64(b.total) * 100)
 }
 
-func (bar *Bar) getTime() (s, ls string) {
-	u := time.Since(bar.start).Seconds()
-	h := int(u) / 3600
-	m := int(u) % 3600 / 60
-	if h > 0 {
-		s += strconv.Itoa(h) + "h "
-	}
-	if m > 0 {
-		s += strconv.Itoa(m) + "m "
-	}
-	s += strconv.Itoa(int(u)%60) + "s"
+func (b *Bar) getTime() (elapsed, remaining string) {
+	elapsedSec := time.Since(b.start).Seconds()
+	h := int(elapsedSec) / 3600
+	m := (int(elapsedSec) % 3600) / 60
+	s := int(elapsedSec) % 60
 
-	l := (float64(bar.total) / float64(bar.current)) * u
-	lh := int(l) / 3600
-	lm := int(l) % 3600 / 60
-	if lh > 0 {
-		ls += strconv.Itoa(lh) + "h "
+	if h > 0 {
+		elapsed = fmt.Sprintf("%dh %dm %ds", h, m, s)
+	} else if m > 0 {
+		elapsed = fmt.Sprintf("%dm %ds", m, s)
+	} else {
+		elapsed = fmt.Sprintf("%ds", s)
 	}
-	if lm > 0 {
-		ls += strconv.Itoa(lm) + "m "
+
+	if b.current > 0 {
+		remainingSec := (float64(b.total) / float64(b.current)) * elapsedSec
+		rh := int(remainingSec) / 3600
+		rm := (int(remainingSec) % 3600) / 60
+		rs := int(remainingSec) % 60
+
+		if rh > 0 {
+			remaining = fmt.Sprintf("%dh %dm %ds", rh, rm, rs)
+		} else if rm > 0 {
+			remaining = fmt.Sprintf("%dm %ds", rm, rs)
+		} else {
+			remaining = fmt.Sprintf("%ds", rs)
+		}
 	}
-	ls += strconv.Itoa(int(l)%60) + "s"
+
 	return
 }
 
-func (bar *Bar) load() {
-	last := bar.percent
-	bar.percent = bar.getPercent()
-	if bar.percent != last && bar.percent%2 == 0 {
-		bar.rate += bar.graph
+func (b *Bar) render() {
+	elapsed, remaining := b.getTime()
+	fmt.Fprintf(b.output, "\r[%-50s]% 3d%% %12s/%-12s %d/%d", b.rate, b.percent, elapsed, remaining, b.current, b.total)
+}
+
+func (b *Bar) Reset(current int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.current = current
+	b.percent = b.getPercent()
+	b.updateRate()
+	b.render()
+}
+
+func (b *Bar) Add(delta int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.current += delta
+	b.percent = b.getPercent()
+	if b.percent%2 == 0 {
+		b.rate += b.graph
 	}
-	pasted, left := bar.getTime()
-	fmt.Fprintf(os.Stderr, "\r[%-50s]% 3d%%    %2s/%2s   %d/%d", bar.rate, bar.percent, pasted, left, bar.current, bar.total)
+	b.render()
 }
 
-func (bar *Bar) Reset(current int64) {
-	bar.mu.Lock()
-	defer bar.mu.Unlock()
-	bar.current = current
-	bar.load()
-}
-
-func (bar *Bar) Add(i int64) {
-	bar.mu.Lock()
-	defer bar.mu.Unlock()
-	bar.current += i
-	bar.load()
+func (b *Bar) updateRate() {
+	for i := 0; i < b.percent; i += 2 {
+		b.rate += b.graph
+	}
 }
 
 func NewBar(current, total int64) *Bar {
-	bar := new(Bar)
-	bar.current = current
-	bar.total = total
-	bar.start = time.Now()
-	if bar.graph == "" {
-		bar.graph = "█"
-	}
-	bar.percent = bar.getPercent()
-	for i := 0; i < bar.percent; i += 2 {
-		bar.rate += bar.graph // 初始化进度条位置
-	}
-	return bar
+	return newBar(current, total, "█", os.Stderr)
 }
 
-func NewBarWithGraph(start, total int64, graph string) *Bar {
-	bar := NewBar(start, total)
-	bar.graph = graph
-	return bar
+func NewBarWithGraph(current, total int64, graph string) *Bar {
+	return newBar(current, total, graph, os.Stderr)
+}
+
+func newBar(current, total int64, graph string, output io.Writer) *Bar {
+	b := &Bar{
+		current: current,
+		total:   total,
+		graph:   graph,
+		output:  output,
+		start:   time.Now(),
+	}
+	b.percent = b.getPercent()
+	b.updateRate()
+	return b
 }
