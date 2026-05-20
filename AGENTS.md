@@ -17,10 +17,9 @@ goutil/
 │   └── bar_test.go
 ├── log/           # 日志工具（slog + zap 双后端支持）
 │   ├── common.go  # 文件写入器、路径验证
-│   ├── option.go  # 日志配置（Level、Format、Path、MultiFiles）
 │   ├── slog.go    # slog.Handler 实现
 │   ├── zap.go     # zap.Logger 封装
-│   └── *_test.go
+│   └── *_test.go  # 测试
 └── README.md
 ```
 

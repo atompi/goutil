@@ -27,25 +27,18 @@ type Logger struct {
 	MultiFiles bool
 }
 
-type Config struct {
-	Level      string `yaml:"level"`
-	Format     string `yaml:"format"`
-	Path       string `yaml:"path"`
-	MultiFiles bool   `yaml:"multi_files"`
-}
-
-func (c *Config) ToOptions() []Options {
+func (l *Logger) ToOptions() []Options {
 	var opts []Options
-	if c.Level != "" {
-		opts = append(opts, WithLevel(c.Level))
+	if l.Level != "" {
+		opts = append(opts, WithLevel(l.Level))
 	}
-	if c.Format != "" {
-		opts = append(opts, WithFormat(c.Format))
+	if l.Format != "" {
+		opts = append(opts, WithFormat(l.Format))
 	}
-	if c.Path != "" {
-		opts = append(opts, WithPath(c.Path))
+	if l.Path != "" {
+		opts = append(opts, WithPath(l.Path))
 	}
-	if c.MultiFiles {
+	if l.MultiFiles {
 		opts = append(opts, WithMultiFiles(true))
 	}
 	return opts
