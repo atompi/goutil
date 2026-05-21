@@ -31,5 +31,5 @@ bar/
 | 符号 | 类型 | 位置 | 说明 |
 |------|------|------|------|
 | Bar | 结构体 | bar.go:11 | 进度条状态 |
-| NewBar | 函数 | bar.go:77 | 构造函数 |
-| NewBarWithGraph | 函数 | bar.go:92 | 支持自定义图形的构造函数 |
+| NewBar | 函数 | bar.go:92 | 构造函数 |
+| NewBarWithGraph | 函数 | bar.go:96 | 支持自定义图形的构造函数 |

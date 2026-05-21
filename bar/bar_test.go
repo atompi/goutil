@@ -137,11 +137,41 @@ func TestBarRender(t *testing.T) {
 	b.render()
 
 	output := buf.String()
-	if !strings.Contains(output, "[") || !strings.Contains(output, "]") {
-		t.Error("output should contain progress bar brackets")
+	if !strings.Contains(output, "[") {
+		t.Error("output should contain opening bracket")
+	}
+	if !strings.Contains(output, "]") {
+		t.Error("output should contain closing bracket")
 	}
 	if !strings.Contains(output, "%") {
 		t.Error("output should contain percentage")
+	}
+	if !strings.Contains(output, "10/100") {
+		t.Errorf("output should contain current/total, got %s", output)
+	}
+
+	buf.Reset()
+	b.current = 50
+	b.percent = 50
+	b.rate = strings.Repeat("█", 25)
+	b.render()
+	output = buf.String()
+	if !strings.Contains(output, "50%") {
+		t.Errorf("output should contain 50%%, got %s", output)
+	}
+
+	if strings.Contains(output, "100%") {
+		t.Error("output should not contain 100% when percent is 50")
+	}
+
+	bracketEnd := strings.Index(output, "]")
+	bracketStart := strings.Index(output, "[")
+	if bracketStart >= 0 && bracketEnd > bracketStart {
+		rateContent := output[bracketStart+1 : bracketEnd]
+		runeCount := []rune(rateContent)
+		if len(runeCount) != 50 {
+			t.Errorf("rate field should be 50 characters, got %d", len(runeCount))
+		}
 	}
 }
 
@@ -154,5 +184,109 @@ func TestBarEdgeCases(t *testing.T) {
 	b = NewBar(150, 100)
 	if b.percent != 150 {
 		t.Errorf("over 100 should give percent > 100, got %d", b.percent)
+	}
+}
+
+func TestBarUpdateRate(t *testing.T) {
+	tests := []struct {
+		name        string
+		percent     int
+		graph       string
+		expectedLen int
+	}{
+		{"50 percent", 50, "█", 75},
+		{"100 percent", 100, "█", 150},
+		{"25 percent", 25, "█", 39},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &Bar{graph: tt.graph, rate: "", percent: tt.percent}
+			b.updateRate()
+			if len(b.rate) != tt.expectedLen {
+				t.Errorf("expected rate length %d, got %d", tt.expectedLen, len(b.rate))
+			}
+		})
+	}
+}
+
+func TestBarLargeNumbers(t *testing.T) {
+	b := NewBar(0, 1e9)
+	if b.percent != 0 {
+		t.Errorf("expected 0 percent for 0/1e9, got %d", b.percent)
+	}
+
+	b.current = 5e8
+	b.percent = b.getPercent()
+	if b.percent != 50 {
+		t.Errorf("expected 50 percent for 5e8/1e9, got %d", b.percent)
+	}
+}
+
+func TestBarTimeFormatting(t *testing.T) {
+	tests := []struct {
+		name     string
+		elapsed  time.Duration
+		expected string
+	}{
+		{"seconds only", 30 * time.Second, "30s"},
+		{"minutes and seconds", 90 * time.Second, "1m 30s"},
+		{"hours minutes seconds", 3661 * time.Second, "1h 1m 1s"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &Bar{
+				start:   time.Now().Add(-tt.elapsed),
+				current: 50,
+				total:   100,
+			}
+			elapsed, _ := b.getTime()
+			if elapsed != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, elapsed)
+			}
+		})
+	}
+}
+
+func TestBarAddEdgeCases(t *testing.T) {
+	var buf bytes.Buffer
+	b := newBar(0, 100, "█", &buf)
+
+	b.Add(0)
+	if b.current != 0 {
+		t.Errorf("Add(0) should not change current, got %d", b.current)
+	}
+
+	b.Add(100)
+	if b.current != 100 {
+		t.Errorf("expected current 100, got %d", b.current)
+	}
+
+	b.Add(-50)
+	if b.current != 50 {
+		t.Errorf("Add(-50) should result in current 50, got %d", b.current)
+	}
+
+	b.Add(-100)
+	if b.current != -50 {
+		t.Errorf("Add(-100) when current is 50 should result in -50, got %d", b.current)
+	}
+}
+
+func TestBarResetEdgeCases(t *testing.T) {
+	var buf bytes.Buffer
+	b := newBar(50, 100, "█", &buf)
+
+	// Reset to same value
+	b.Reset(50)
+	if b.current != 50 || b.percent != 50 {
+		t.Errorf("reset to same value failed: current=%d, percent=%d", b.current, b.percent)
+	}
+
+	// Reset to 0
+	b.Reset(0)
+	if b.current != 0 || b.percent != 0 {
+		t.Errorf("reset to 0 failed: current=%d, percent=%d", b.current, b.percent)
 	}
 }

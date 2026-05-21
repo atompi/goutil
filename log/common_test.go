@@ -136,6 +136,18 @@ func TestFilePathValidator(t *testing.T) {
 			pathSeparator: '\\',
 			expected:      true,
 		},
+		{
+			name:          "trailing dot",
+			path:          "/tmp/logs/app.",
+			pathSeparator: '/',
+			expected:      false,
+		},
+		{
+			name:          "trailing dot windows",
+			path:          "C:\\logs\\app.",
+			pathSeparator: '\\',
+			expected:      false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -340,30 +352,95 @@ func TestNewLogFileWithMockedOpenFile(t *testing.T) {
 	}
 }
 
-// TestFilePathValidatorRegex tests different OS path validation
+func TestLoggerToOptions(t *testing.T) {
+	tests := []struct {
+		name           string
+		logger         *Logger
+		expectedLevel  string
+		expectedFormat string
+		expectedPath   string
+		expectedMulti  bool
+	}{
+		{
+			name:           "level only",
+			logger:         &Logger{Level: "debug"},
+			expectedLevel:  "debug",
+			expectedFormat: "console",
+			expectedPath:   "logger",
+			expectedMulti:  false,
+		},
+		{
+			name: "all options set",
+			logger: &Logger{
+				Level:      "warn",
+				Format:     "json",
+				Path:       "/tmp/app",
+				MultiFiles: true,
+			},
+			expectedLevel:  "warn",
+			expectedFormat: "json",
+			expectedPath:   "/tmp/app",
+			expectedMulti:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := tt.logger.ToOptions()
+			got := NewLoggerOptions(opts...)
+			if got.Level != tt.expectedLevel {
+				t.Errorf("Level: expected %s, got %s", tt.expectedLevel, got.Level)
+			}
+			if got.Format != tt.expectedFormat {
+				t.Errorf("Format: expected %s, got %s", tt.expectedFormat, got.Format)
+			}
+			if got.Path != tt.expectedPath {
+				t.Errorf("Path: expected %s, got %s", tt.expectedPath, got.Path)
+			}
+			if got.MultiFiles != tt.expectedMulti {
+				t.Errorf("MultiFiles: expected %v, got %v", tt.expectedMulti, got.MultiFiles)
+			}
+		})
+	}
+}
+
+// TestNewLogFileFileCreationFailure tests NewLogFile with file creation failure
+func TestNewLogFileFileCreationFailure(t *testing.T) {
+	tempDir := t.TempDir()
+	logPath := filepath.Join(tempDir, "subdir", "test.log")
+
+	originalMkdirAll := MkdirAll
+	MkdirAll = func(path string, mode os.FileMode) error {
+		if path == tempDir {
+			return nil
+		}
+		return os.ErrPermission
+	}
+	defer func() { MkdirAll = originalMkdirAll }()
+
+	writer := NewLogFile(logPath)
+	if writer != os.Stdout {
+		t.Error("expected stdout whenMkdirAll fails on subdir")
+	}
+}
+
 func TestFilePathValidatorRegex(t *testing.T) {
 	if os.PathSeparator == '/' {
-		// Test Linux path separator
-		// On Unix, backslash is technically allowed in filenames
 		result := ValidPath("/tmp/log\\file.log")
 		if result {
-			t.Log("Note: backslash is allowed in Unix filenames (though bad practice)")
+			t.Log("Note: backslash is allowed in Unix filenames")
 		}
 
-		// Should reject asterisk
 		result = ValidPath("/tmp/log*file.log")
 		if result {
 			t.Error("Linux path should not allow asterisk")
 		}
 	} else {
-		// Test Windows path separator
-		// Should reject forward slash
 		result := ValidPath("C:\\log/file.log")
 		if result {
 			t.Error("Windows path should not allow forward slash")
 		}
 
-		// Should reject less than sign
 		result = ValidPath("C:\\log<file.log")
 		if result {
 			t.Error("Windows path should not allow less than sign")

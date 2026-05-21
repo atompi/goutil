@@ -28,7 +28,7 @@ goutil/
 | 需求 | 文件位置 | 关键函数 |
 |------|----------|----------|
 | 进度条 | `bar/bar.go` | `NewBar()`, `NewBarWithGraph()` |
-| 日志配置 | `log/option.go` | `NewLoggerOptions()`, `WithLevel()`, `WithFormat()`, `WithPath()`, `WithMultiFiles()` |
+| 日志配置 | `log/common.go` | `NewLoggerOptions()`, `WithLevel()`, `WithFormat()`, `WithPath()`, `WithMultiFiles()` |
 | slog 后端 | `log/slog.go` | `NewSlogLogger()` |
 | zap 后端 | `log/zap.go` | `NewZapLogger()` |
 | 文件写入器 | `log/common.go` | `NewLogFile()` |
@@ -38,12 +38,12 @@ goutil/
 | 符号 | 类型 | 位置 | 说明 |
 |------|------|------|------|
 | Bar | 结构体 | bar/bar.go:11 | 进度条状态 |
-| NewBar | 函数 | bar/bar.go:77 | 构造函数 |
-| Logger | 结构体 | log/option.go:3 | 配置容器 |
-| Options | 类型 | log/option.go:10 | 函数式选项 |
+| NewBar | 函数 | bar/bar.go:92 | 构造函数 |
+| Logger | 结构体 | log/common.go:23 | 配置容器 |
+| Options | 类型 | log/common.go:47 | 函数式选项 |
 | NewSlogLogger | 函数 | log/slog.go:68 | slog 日志后端 |
 | NewZapLogger | 函数 | log/zap.go:11 | zap 日志后端 |
-| NewLogFile | 函数 | log/common.go:19 | 文件写入器工厂 |
+| NewLogFile | 函数 | log/common.go:86 | 文件写入器工厂 |
 
 ## 约定规范
 
